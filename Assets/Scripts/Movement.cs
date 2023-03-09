@@ -1,6 +1,4 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public enum PlayerState
@@ -9,6 +7,7 @@ public enum PlayerState
     Crouching,
     Jumping,
     Falling,
+    Hurt
 }
 
 [RequireComponent( typeof( CharacterController ) )]
@@ -45,6 +44,8 @@ public class Movement : MonoBehaviour
     private float m_JumpTime = 0.4f;
     private float m_JumpTimer = 0f;
 
+    private Boolean m_ShouldTurn = false;
+
     void Start()
     {
         m_CharacterController = GetComponent<CharacterController>();
@@ -56,22 +57,31 @@ public class Movement : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        UpdateState();
+        if ( m_PlayerState != PlayerState.Hurt )
+        {
+            UpdateState();
+        }
         UpdateCollider();
         UpdateMovement();
+        UpdateTurn();
 
         m_PreviousGroundedState = m_CharacterController.isGrounded;
     }
 
     private void UpdateMovement()
     {
-        float xMoveSpeed = m_RunSpeed;
-        if ( m_PlayerState == PlayerState.Jumping )
-            xMoveSpeed = m_RunSpeed * 1.5f;
-        else if ( m_PlayerState == PlayerState.Crouching )
-            xMoveSpeed = m_CrouchSpeed;
+        float xMoveSpeed = 0;
 
-        m_MoveDirection.x = xMoveSpeed;
+        if ( m_PlayerState != PlayerState.Hurt )
+        {
+            xMoveSpeed = m_RunSpeed;
+            if ( m_PlayerState == PlayerState.Jumping )
+                xMoveSpeed = m_RunSpeed * 1.5f;
+            else if ( m_PlayerState == PlayerState.Crouching )
+                xMoveSpeed = m_CrouchSpeed;
+
+            m_MoveDirection.x = m_Animator.GetBool( "Forwards" ) ? xMoveSpeed : -xMoveSpeed;
+        }
 
         if ( m_PlayerState != PlayerState.Jumping )
         {
@@ -151,15 +161,41 @@ public class Movement : MonoBehaviour
         }
     }
 
+    private void UpdateTurn()
+    {
+        if ( !m_ShouldTurn )
+            return;
+
+        Vector3 targetDirection = (transform.position - new Vector3( m_Animator.GetBool( "Forwards" ) ? 10 : -10, 0, 0 )) - transform.position;
+
+        float singleStep = 6f * Time.deltaTime;
+        Vector3 newDirection = Vector3.RotateTowards( transform.forward, targetDirection, singleStep, 0.0f );
+        transform.rotation = Quaternion.LookRotation( newDirection );
+
+        if ( newDirection.z > -0.01f )
+        {
+            m_PlayerState = PlayerState.Running;
+            m_ShouldTurn = false;
+            m_Animator.SetBool( "Forwards", !m_Animator.GetBool( "Forwards" ) );
+        }
+    }
+
+    public void Turn()
+    {
+        m_ShouldTurn = true;
+    }
+
     private void OnControllerColliderHit(ControllerColliderHit hit)
     {
-        if ( hit.gameObject.tag.Equals( "Obstacle" ) )
+        if ( hit.gameObject.tag.Equals( "Obstacle" ) && m_PlayerState != PlayerState.Hurt )
         {
-            Debug.Log( "Hit object, ouch!" );
+            m_PlayerState = PlayerState.Hurt;
+            m_Animator.SetTrigger( "Hit" );
         }
     }
 
     public void FootL() { }
     public void FootR() { }
     public void Land() { }
+
 }
