@@ -1,6 +1,13 @@
 using System;
 using UnityEngine;
 
+public enum GameState
+{
+    Tutorial,
+    Playing,
+    Complete
+}
+
 public enum PlayerState
 {
     Running,
@@ -28,6 +35,8 @@ public class Movement : MonoBehaviour
     private CharacterController m_CharacterController;
     private Animator m_Animator;
     private PlayerState m_PlayerState = PlayerState.Running;
+    // TODO: Move to game manager?
+    private GameState m_GameState = GameState.Tutorial;
 
     private Vector3 m_MoveDirection = Vector3.zero;
     private Boolean m_PreviousGroundedState;
@@ -44,6 +53,8 @@ public class Movement : MonoBehaviour
     private float m_JumpTime = 0.4f;
     private float m_JumpTimer = 0f;
 
+    private float m_TutorialTimer = 3f;
+
     private Boolean m_ShouldTurn = false;
 
     void Start()
@@ -57,6 +68,42 @@ public class Movement : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        if ( m_GameState == GameState.Tutorial )
+        {
+            UpdateTutorial();
+            return;
+        }
+        else if ( m_GameState == GameState.Complete )
+        {
+            UpdateComplete();
+            return;
+        }
+
+        UpdatePlaying();
+    }
+
+    private void UpdateTutorial()
+    {
+        // Ensures player is grounded from start
+        UpdateMovement();
+
+        m_TutorialTimer -= Time.deltaTime;
+        Debug.Log( string.Format( "Time is: {0}", (Math.Round( m_TutorialTimer, 0 )).ToString() ) );
+        // TODO: Make UI to show this
+
+        if ( m_TutorialTimer <= 0 )
+        {
+            m_GameState = GameState.Playing;
+            m_Animator.SetTrigger( "Start" );
+        }
+    }
+
+    private void UpdateComplete() { }
+
+    private void UpdatePlaying()
+    {
+        m_MoveDirection.x = 0f;
+
         if ( m_PlayerState != PlayerState.Hurt )
         {
             UpdateState();
@@ -72,7 +119,7 @@ public class Movement : MonoBehaviour
     {
         float xMoveSpeed = 0;
 
-        if ( m_PlayerState != PlayerState.Hurt )
+        if ( m_PlayerState != PlayerState.Hurt && m_GameState == GameState.Playing )
         {
             xMoveSpeed = m_RunSpeed;
             if ( m_PlayerState == PlayerState.Jumping )
@@ -189,8 +236,16 @@ public class Movement : MonoBehaviour
     {
         if ( hit.gameObject.tag.Equals( "Obstacle" ) && m_PlayerState != PlayerState.Hurt )
         {
+            // TODO: Don't repeat until we've left the object?
+            // Or maybe move player away from object
             m_PlayerState = PlayerState.Hurt;
             m_Animator.SetTrigger( "Hit" );
+        }
+        else if ( hit.gameObject.tag.Equals( "Goal" ) )
+        {
+            // TODO: UI to show completion
+            m_GameState = GameState.Complete;
+            m_Animator.SetTrigger( "Win" );
         }
     }
 
