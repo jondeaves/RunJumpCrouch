@@ -55,7 +55,10 @@ public class Movement : MonoBehaviour
 
     private float m_TutorialTimer = 3f;
 
+    private float m_CompleteTimer = 0.3f;
+
     private Boolean m_ShouldTurn = false;
+    private Boolean m_HasAnimatedWin = false;
 
     void Start()
     {
@@ -71,12 +74,11 @@ public class Movement : MonoBehaviour
         if ( m_GameState == GameState.Tutorial )
         {
             UpdateTutorial();
-            return;
         }
-        else if ( m_GameState == GameState.Complete )
+
+        if ( m_GameState == GameState.Complete )
         {
             UpdateComplete();
-            return;
         }
 
         UpdatePlaying();
@@ -84,9 +86,6 @@ public class Movement : MonoBehaviour
 
     private void UpdateTutorial()
     {
-        // Ensures player is grounded from start
-        UpdateMovement();
-
         m_TutorialTimer -= Time.deltaTime;
         Debug.Log( string.Format( "Time is: {0}", (Math.Round( m_TutorialTimer, 0 )).ToString() ) );
         // TODO: Make UI to show this
@@ -98,19 +97,26 @@ public class Movement : MonoBehaviour
         }
     }
 
-    private void UpdateComplete() { }
+    private void UpdateComplete()
+    {
+        if ( m_CompleteTimer >= 0f )
+        {
+            m_CharacterController.Move( new Vector3( m_RunSpeed, Math.Clamp( m_MoveDirection.y + (Physics.gravity.y * Time.deltaTime * 2f), Physics.gravity.y, 9999f ), 0 ) * Time.deltaTime );
+            m_CompleteTimer -= Time.deltaTime;
+        }
+        else if ( !m_HasAnimatedWin )
+        {
+            m_Animator.SetTrigger( "Win" );
+            m_HasAnimatedWin = true;
+        }
+    }
 
     private void UpdatePlaying()
     {
-        m_MoveDirection.x = 0f;
-
-        if ( m_PlayerState != PlayerState.Hurt )
-        {
-            UpdateState();
-        }
+        UpdateState();
         UpdateCollider();
-        UpdateMovement();
         UpdateTurn();
+        UpdateMovement();
 
         m_PreviousGroundedState = m_CharacterController.isGrounded;
     }
@@ -118,6 +124,7 @@ public class Movement : MonoBehaviour
     private void UpdateMovement()
     {
         float xMoveSpeed = 0;
+        m_MoveDirection.x = 0f;
 
         if ( m_PlayerState != PlayerState.Hurt && m_GameState == GameState.Playing )
         {
@@ -140,6 +147,13 @@ public class Movement : MonoBehaviour
 
     private void UpdateState()
     {
+        if ( m_GameState == GameState.Tutorial )
+        {
+            return;
+        }
+
+        bool canControl = m_PlayerState != PlayerState.Hurt;
+
         // If jumping
         if ( m_PlayerState == PlayerState.Jumping )
         {
@@ -163,7 +177,7 @@ public class Movement : MonoBehaviour
         }
 
         // If we have just become grounded, time to land
-        if ( m_CharacterController.isGrounded && m_PlayerState == PlayerState.Falling )
+        if ( m_CharacterController.isGrounded && m_PlayerState == PlayerState.Falling && m_GameState != GameState.Tutorial )
         {
             m_Animator.SetTrigger( "Land" );
             m_PlayerState = PlayerState.Running;
@@ -241,11 +255,10 @@ public class Movement : MonoBehaviour
             m_PlayerState = PlayerState.Hurt;
             m_Animator.SetTrigger( "Hit" );
         }
-        else if ( hit.gameObject.tag.Equals( "Goal" ) )
+        else if ( hit.gameObject.tag.Equals( "Goal" ) && m_GameState != GameState.Complete )
         {
             // TODO: UI to show completion
             m_GameState = GameState.Complete;
-            m_Animator.SetTrigger( "Win" );
         }
     }
 
